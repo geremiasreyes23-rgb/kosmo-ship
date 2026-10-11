@@ -39,6 +39,11 @@ const RESOURCES = [
   "settings",
   "mail",
   "feed",
+  // Kosmo Ship — paquetes (recepción, estados, entrega) y manifiestos
+  // (consolidación y despacho). Entran en businessResources, así que Manager
+  // y Agent reciben view/create/edit y Viewer solo view, como el resto.
+  "packages",
+  "manifests",
 ] as const;
 const CRUD_ACTIONS = ["view", "create", "edit", "delete"] as const;
 
@@ -84,6 +89,9 @@ const EXTRA_PERMISSIONS: [string, string][] = [
   // Manager solo "view" (más abajo); Agent y Viewer, ninguno.
   ["finance", "view"],
   ["finance", "manage"],
+  // Kosmo Ship — catálogos de envíos (destinos y tarifas). Solo Admin/Super
+  // Admin vía allKeys: cambiar una tarifa afecta lo que se cobra a todos.
+  ["shipping", "admin"],
 ];
 
 function generateTempPassword(): string {

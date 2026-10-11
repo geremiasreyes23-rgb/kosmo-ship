@@ -468,6 +468,9 @@ model Client {
   obamacareProfile      ObamacareProfile?
   familyHeritageProfile FamilyHeritageProfile?
 
+  // Kosmo Ship — casillero del cliente (ver sección "KOSMO SHIP" al final).
+  shippingProfile       ShippingProfile?
+
   sensitiveFields   SensitiveField[]
 }
 
@@ -1038,6 +1041,9 @@ model Document {
   sale     Sale?   @relation(fields: [saleId], references: [id])
   policyId String?
   policy   Policy? @relation(fields: [policyId], references: [id])
+  // Kosmo Ship — factura de compra adjunta a la prealerta, etc.
+  packageId String?
+  package   Package? @relation(fields: [packageId], references: [id], onDelete: SetNull)
 }
 
 // ---------------------------------------------------------------------------
@@ -1748,4 +1754,188 @@ model FinanceRecurringExpense {
   createdById     String
   createdBy       User                   @relation("FinanceRecurringCreatedBy", fields: [createdById], references: [id])
   transactions    FinanceTransaction[]
+}
+
+// ============================================================================
+// 17. KOSMO SHIP — PAQUETERÍA Y COURIER
+// ============================================================================
+// Vertical de paquetería: casilleros de clientes, paquetes recibidos en
+// almacén, consolidación en manifiestos y despacho. Sigue los mismos
+// principios que el resto del schema:
+// - ShippingProfile es un perfil 1:1 con Client, igual que MedicareProfile.
+// - Destinos y tarifas son catálogos configurables (nada hardcodeado).
+// - Cada cambio de estado de un paquete queda trazado en PackageEvent,
+//   como PipelineHistory para leads y ventas.
+// - IDs visibles autoincrementales formateados en la UI, como clientNumber:
+//   packageNumber → "PKG-000123", manifestNumber → "MAN-000045".
+// Documentación: docs/kosmo-ship/modelo-de-datos.md
+
+// ---------------------------------------------------------------------------
+// A. PERFIL DE ENVÍOS DEL CLIENTE (casillero)
+// ---------------------------------------------------------------------------
+
+model ShippingProfile {
+  id               String       @id @default(cuid())
+  clientId         String       @unique
+  client           Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  // Código de casillero/suite que el cliente pone en sus compras online.
+  // Se asigna automáticamente al crear el perfil (prefijo del destino +
+  // consecutivo), nunca se captura a mano. Ej: "SDQ-2031".
+  lockerCode       String       @unique
+  destinationId    String
+  destination      ShippingDestination @relation(fields: [destinationId], references: [id])
+  rateId           String?
+  rate             ShippingRate? @relation(fields: [rateId], references: [id])
+  deliveryAddress  String?      // dirección de entrega en destino
+  // Canal preferido para avisos de estado: whatsapp | sms | email | push
+  notifyChannel    String       @default("push")
+  packages         Package[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// B. PAQUETES
+// ---------------------------------------------------------------------------
+
+model Package {
+  id                String          @id @default(cuid())
+  packageNumber     Int             @unique @default(autoincrement()) // "PKG-000123"
+  shippingProfileId String
+  shippingProfile   ShippingProfile @relation(fields: [shippingProfileId], references: [id])
+
+  // Datos de origen (lo que llega de la tienda / carrier en EE. UU.)
+  originTracking    String?
+  originCarrier     String?         // UPS, FedEx, USPS, Amazon, DHL...
+  description       String?
+  declaredValue     Decimal?        @db.Decimal(10, 2)
+
+  // Medidas tomadas en almacén al recibir
+  weightLb          Decimal?        @db.Decimal(8, 2)
+  lengthIn          Decimal?        @db.Decimal(6, 2)
+  widthIn           Decimal?        @db.Decimal(6, 2)
+  heightIn          Decimal?        @db.Decimal(6, 2)
+  // Calculados al recibir con la tarifa vigente — se guardan para que un
+  // cambio de tarifa posterior no altere lo ya cobrado.
+  billableWeightLb  Decimal?        @db.Decimal(8, 2) // max(real, volumétrico)
+  amount            Decimal?        @db.Decimal(10, 2)
+  isPaid            Boolean         @default(false)
+
+  status            PackageStatus   @default(PREALERTED)
+  holdReason        String?         // solo cuando status = ON_HOLD
+  manifestId        String?
+  manifest          Manifest?       @relation(fields: [manifestId], references: [id])
+
+  receivedById      String?         // usuario de almacén que lo recibió
+  receivedAt        DateTime?
+  deliveredById     String?         // chofer / mostrador
+  deliveredAt       DateTime?
+
+  photos            PackagePhoto[]
+  events            PackageEvent[]
+  documents         Document[]      // factura de compra (prealerta), etc.
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([shippingProfileId, status])
+  @@index([status, updatedAt])
+  @@index([originTracking])
+}
+
+enum PackageStatus {
+  PREALERTED      // el cliente avisó que viene
+  RECEIVED        // escaneado y pesado en almacén
+  ON_HOLD         // retenido (falta factura, pago, valor alto...)
+  CONSOLIDATED    // asignado a un manifiesto abierto
+  DISPATCHED      // manifiesto cerrado y despachado
+  IN_TRANSIT
+  IN_CUSTOMS
+  READY           // listo para retirar o entregar en destino
+  DELIVERED
+}
+
+model PackagePhoto {
+  id        String   @id @default(cuid())
+  packageId String
+  package   Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  fileUrl   String
+  kind      String   // receiving | delivery | damage
+  takenById String
+  createdAt DateTime @default(now())
+}
+
+// Historial de estados — equivalente a PipelineHistory para paquetes.
+model PackageEvent {
+  id          String        @id @default(cuid())
+  packageId   String
+  package     Package       @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  fromStatus  PackageStatus?
+  toStatus    PackageStatus
+  note        String?
+  changedById String?       // null si lo cambió una integración externa
+  changedAt   DateTime      @default(now())
+
+  @@index([packageId, changedAt])
+}
+
+// ---------------------------------------------------------------------------
+// C. MANIFIESTOS (consolidación y despacho)
+// ---------------------------------------------------------------------------
+
+model Manifest {
+  id             String              @id @default(cuid())
+  manifestNumber Int                 @unique @default(autoincrement()) // "MAN-000045"
+  mode           ShippingMode
+  destinationId  String
+  destination    ShippingDestination @relation(fields: [destinationId], references: [id])
+  masterTracking String?             // AWB (aéreo) o BL (marítimo)
+  departureDate  DateTime?
+  status         ManifestStatus      @default(OPEN)
+  packages       Package[]
+  createdById    String
+  createdAt      DateTime            @default(now())
+  closedAt       DateTime?
+
+  @@index([status, destinationId])
+}
+
+enum ShippingMode {
+  AIR
+  OCEAN
+}
+
+enum ManifestStatus {
+  OPEN
+  CLOSED
+  DISPATCHED
+  ARRIVED
+}
+
+// ---------------------------------------------------------------------------
+// D. CATÁLOGOS CONFIGURABLES (Configuración → Envíos)
+// ---------------------------------------------------------------------------
+
+model ShippingDestination {
+  id            String            @id @default(cuid())
+  code          String            @unique // prefijo del casillero: SDQ, STI...
+  name          String            // Santo Domingo, Santiago...
+  country       String
+  isActive      Boolean           @default(true)
+  profiles      ShippingProfile[]
+  manifests     Manifest[]
+}
+
+model ShippingRate {
+  id                String            @id @default(cuid())
+  name              String            // Estándar, Mayorista...
+  pricePerLb        Decimal           @db.Decimal(8, 2)
+  minimumCharge     Decimal           @db.Decimal(8, 2)
+  // Divisor volumétrico (in³/lb). 166 es común en EE. UU.; configurable.
+  volumetricDivisor Int               @default(166)
+  insurancePercent  Decimal?          @db.Decimal(5, 2)
+  homeDeliveryFee   Decimal?          @db.Decimal(8, 2)
+  isDefault         Boolean           @default(false)
+  isActive          Boolean           @default(true)
+  profiles          ShippingProfile[]
 }

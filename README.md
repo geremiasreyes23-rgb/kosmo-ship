@@ -47,7 +47,8 @@ Un solo proyecto Next.js sirve las tres experiencias:
 ## Hoja de ruta
 
 - [x] Copia independiente de Kosmo y documentación de la vertical
-- [ ] Integrar los modelos de paquetería en `prisma/schema.prisma` y migrar a una base de datos propia en Neon
+- [x] Modelos de paquetería en `prisma/schema.prisma`, migración `20261011190000_kosmo_ship_paqueteria` y permisos (`packages`, `manifests`, `shipping:admin`)
+- [x] Base de datos propia en Neon (proyecto `kosmo-ship`)
 - [ ] PWA instalable (`app/manifest.ts`, íconos, service worker)
 - [ ] Recepción en almacén (escaneo, peso, medidas, foto)
 - [ ] Vista del cliente en el teléfono (mis paquetes, prealerta)

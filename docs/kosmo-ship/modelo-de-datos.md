@@ -1,6 +1,15 @@
 # Modelo de datos
 
-Kosmo Ship se agrega a Kosmo como una **línea de negocio más**, siguiendo los principios del `schema.prisma` de Kosmo: perfiles 1:1 con `Client`, catálogos configurables y trazabilidad de cada cambio. El borrador completo está en [`prisma/ship.prisma`](ship.prisma) y valida sin errores junto al esquema actual de Kosmo.
+Kosmo Ship se agrega a Kosmo como una **línea de negocio más**, siguiendo los principios del `schema.prisma` de Kosmo: perfiles 1:1 con `Client`, catálogos configurables y trazabilidad de cada cambio.
+
+Los modelos viven en la sección **17. KOSMO SHIP** de [`prisma/schema.prisma`](../../prisma/schema.prisma) y se crean con la migración `prisma/migrations/20261011190000_kosmo_ship_paqueteria`. El archivo [`ship.prisma`](ship.prisma) de esta carpeta queda como referencia del diseño original.
+
+## Reglas de borrado
+
+- Borrar un **paquete** borra sus fotos y su historial; sus documentos quedan, sin el vínculo.
+- **No se puede borrar un cliente que tenga paquetes**: protege el historial de cobros. Un cliente sin paquetes sí se puede borrar, y con él su casillero.
+- No se puede borrar un **destino** que tenga casilleros o manifiestos.
+- Borrar una **tarifa** deja a sus casilleros sin tarifa asignada.
 
 ## Qué se reutiliza de Kosmo y qué es nuevo
 
