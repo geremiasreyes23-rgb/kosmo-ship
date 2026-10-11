@@ -1,8 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/db";
-import { requireUser, canViewAll } from "@/lib/auth";
-import { formatClientCode } from "@/lib/utils";
+import { requireUser, hasPermission } from "@/lib/auth";
+import { formatPackageCode, packageStatusLabel } from "@/lib/ship/format";
 
 export interface GlobalSearchHit {
   id: string;
@@ -12,114 +12,86 @@ export interface GlobalSearchHit {
 }
 
 export interface GlobalSearchResult {
-  clients: GlobalSearchHit[];
-  leads: GlobalSearchHit[];
-  policies: GlobalSearchHit[];
-  carriers: GlobalSearchHit[];
+  packages: GlobalSearchHit[];
+  lockers: GlobalSearchHit[];
 }
 
-const EMPTY_RESULT: GlobalSearchResult = { clients: [], leads: [], policies: [], carriers: [] };
+const EMPTY_RESULT: GlobalSearchResult = { packages: [], lockers: [] };
 
 const RESULTS_PER_GROUP = 5;
 
-/** Buscador global del header ("Buscar cliente, lead, póliza, carrier...")
- * — respeta el mismo alcance por rol que el resto del CRM: sin
- * "*:view_all", un vendedor solo encuentra sus propios clientes/leads/
- * pólizas (los carriers son catálogo compartido, visibles para todos). El
- * ID visible del cliente (Client.clientNumber, ver formatClientCode) es
- * buscable igual que el nombre/teléfono/email. */
+/** Buscador global del header de Kosmo Ship ("Buscar paquete, tracking,
+ * casillero o cliente..."). Reemplaza al buscador de leads/pólizas/carriers
+ * del CRM de seguros. Exige "packages:view", igual que el módulo Paquetes.
+ * Cada resultado abre el módulo Paquetes ya filtrado. */
 export async function globalSearchAction(rawQuery: string): Promise<GlobalSearchResult> {
   const user = await requireUser();
   const query = rawQuery.trim();
-  if (query.length < 2) return EMPTY_RESULT;
+  if (query.length < 2 || !hasPermission(user, "packages", "view")) return EMPTY_RESULT;
 
-  const viewAll = canViewAll(user);
-  const scope = user.agentId ?? "__sin-agente__";
+  // "PKG-000123", "000123" o "123" también encuentran el paquete por número.
+  const digits = query.replace(/^pkg-?/i, "");
+  const asNumber = /^\d+$/.test(digits) && Number(digits) <= 2147483647 ? Number(digits) : null;
 
-  // Permite buscar el ID de cliente escribiendo "C-000123", "000123" o
-  // "123" — se compara tanto contra el texto formateado como, si la
-  // consulta es numérica, contra el número crudo.
-  const asNumber = /^\d+$/.test(query.replace(/^c-?/i, "")) ? Number(query.replace(/^c-?/i, "")) : null;
-
-  const [clientRows, leadRows, policyRows, carrierRows] = await Promise.all([
-    prisma.client.findMany({
+  const [packageRows, lockerRows] = await Promise.all([
+    prisma.package.findMany({
       where: {
-        ...(viewAll ? {} : { agentId: scope }),
         OR: [
-          { firstName: { contains: query, mode: "insensitive" } },
-          { lastName: { contains: query, mode: "insensitive" } },
-          { phone: { contains: query, mode: "insensitive" } },
-          { email: { contains: query, mode: "insensitive" } },
-          ...(asNumber != null ? [{ clientNumber: asNumber }] : []),
-        ],
-      },
-      select: { id: true, firstName: true, lastName: true, clientNumber: true, phone: true, email: true },
-      take: RESULTS_PER_GROUP,
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.lead.findMany({
-      where: {
-        ...(viewAll ? {} : { agentId: scope }),
-        OR: [
-          { firstName: { contains: query, mode: "insensitive" } },
-          { lastName: { contains: query, mode: "insensitive" } },
-          { phone: { contains: query, mode: "insensitive" } },
-          { email: { contains: query, mode: "insensitive" } },
-        ],
-      },
-      select: { id: true, firstName: true, lastName: true, phone: true, email: true },
-      take: RESULTS_PER_GROUP,
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.policy.findMany({
-      where: {
-        ...(viewAll ? {} : { agentId: scope }),
-        OR: [
-          { policyNumber: { contains: query, mode: "insensitive" } },
-          { client: { firstName: { contains: query, mode: "insensitive" } } },
-          { client: { lastName: { contains: query, mode: "insensitive" } } },
+          { originTracking: { contains: query, mode: "insensitive" } },
+          { shippingProfile: { lockerCode: { contains: query, mode: "insensitive" } } },
+          ...(asNumber != null ? [{ packageNumber: asNumber }] : []),
         ],
       },
       select: {
         id: true,
-        policyNumber: true,
-        clientId: true,
-        client: { select: { firstName: true, lastName: true } },
+        packageNumber: true,
+        originTracking: true,
+        status: true,
+        shippingProfile: { select: { lockerCode: true } },
+      },
+      take: RESULTS_PER_GROUP,
+      orderBy: { updatedAt: "desc" },
+    }),
+    prisma.shippingProfile.findMany({
+      where: {
+        OR: [
+          { lockerCode: { contains: query, mode: "insensitive" } },
+          { client: { firstName: { contains: query, mode: "insensitive" } } },
+          { client: { lastName: { contains: query, mode: "insensitive" } } },
+          { client: { phone: { contains: query, mode: "insensitive" } } },
+          { client: { email: { contains: query, mode: "insensitive" } } },
+        ],
+      },
+      select: {
+        id: true,
+        lockerCode: true,
+        client: { select: { firstName: true, lastName: true, phone: true } },
+        _count: { select: { packages: true } },
       },
       take: RESULTS_PER_GROUP,
       orderBy: { createdAt: "desc" },
     }),
-    prisma.carrier.findMany({
-      where: { name: { contains: query, mode: "insensitive" } },
-      select: { id: true, name: true },
-      take: RESULTS_PER_GROUP,
-      orderBy: { name: "asc" },
-    }),
   ]);
 
   return {
-    clients: clientRows.map((c) => ({
-      id: c.id,
-      label: `${c.firstName} ${c.lastName}`,
-      sublabel: `${formatClientCode(c.clientNumber)}${c.phone ? ` · ${c.phone}` : c.email ? ` · ${c.email}` : ""}`,
-      href: `/clients/${c.id}`,
-    })),
-    leads: leadRows.map((l) => ({
+    packages: packageRows.map((p) => {
+      const code = formatPackageCode(p.packageNumber);
+      return {
+        id: p.id,
+        label: code,
+        sublabel: `${p.shippingProfile.lockerCode} · ${packageStatusLabel(p.status)}${
+          p.originTracking ? ` · ${p.originTracking}` : ""
+        }`,
+        href: `/packages?q=${encodeURIComponent(code)}`,
+      };
+    }),
+    lockers: lockerRows.map((l) => ({
       id: l.id,
-      label: `${l.firstName} ${l.lastName}`,
-      sublabel: l.phone ?? l.email ?? undefined,
-      href: `/leads/${l.id}`,
-    })),
-    policies: policyRows.map((p) => ({
-      id: p.id,
-      label: p.policyNumber ?? "Sin número",
-      sublabel: `${p.client.firstName} ${p.client.lastName}`,
-      href: `/clients/${p.clientId}`,
-    })),
-    carriers: carrierRows.map((c) => ({
-      id: c.id,
-      label: c.name,
-      href: `/policies`,
+      label: `${l.client.firstName} ${l.client.lastName}`,
+      sublabel: `${l.lockerCode} · ${l._count.packages} paquete${l._count.packages === 1 ? "" : "s"}${
+        l.client.phone ? ` · ${l.client.phone}` : ""
+      }`,
+      href: `/packages?q=${encodeURIComponent(l.lockerCode)}`,
     })),
   };
 }

@@ -48,6 +48,31 @@ const nextConfig: NextConfig = {
     "*.ngrok.app",
   ],
 
+  // Kosmo Ship — los módulos de seguros heredados de Kosmo CRM (leads,
+  // clientes con perfiles de pólizas, ventas, pólizas, comisiones,
+  // submisiones, reportes diarios y reportes de ventas) no aplican a una
+  // empresa de paquetería. Se quitaron del menú (src/lib/navModules.ts y
+  // Sidebar.tsx) y sus rutas redirigen al dashboard para que no se pueda
+  // llegar a ellos por URL. El código sigue en el repo mientras se
+  // reemplaza por los módulos de paquetería; no es una redirección
+  // permanente a propósito, para no dejarla guardada en los navegadores.
+  async redirects() {
+    const insuranceRoutes = [
+      "/leads",
+      "/clients",
+      "/sales",
+      "/policies",
+      "/commissions",
+      "/submissions",
+      "/activities",
+      "/reports",
+    ];
+    return insuranceRoutes.flatMap((route) => [
+      { source: route, destination: "/dashboard", permanent: false },
+      { source: `${route}/:path*`, destination: "/dashboard", permanent: false },
+    ]);
+  },
+
   // Fase 15 (preparación para producción) — Next.js no agrega estos headers
   // por defecto. Es una herramienta interna detrás de login (no un sitio
   // público), así que el enfoque es defensa básica en profundidad, no una

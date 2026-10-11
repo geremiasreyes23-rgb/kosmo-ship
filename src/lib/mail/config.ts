@@ -9,13 +9,13 @@ import "server-only";
  * esta ni la lógica de validación de destinatarios.
  *
  * INTERNAL_EMAIL_DOMAIN se define en .env.local — nunca hardcodeado. Un
- * dominio real (ej. "allianceinsurance.com") funciona igual que uno
+ * dominio real (ej. "miempresa.com") funciona igual que uno
  * inventado: la única regla dura es que NUNCA se usa este dominio para
  * enviar correo saliente a internet — ver isInternalRecipient() más abajo,
  * que es la función que hace estructuralmente imposible salir del sistema.
  */
 
-const DEFAULT_DOMAIN = "alliance.internal";
+const DEFAULT_DOMAIN = "kosmoship.internal";
 
 /** Dominios que Node/algunos sistemas operativos resuelven de forma especial
  * (mDNS, loopback) — el brief pide explícitamente evitarlos para que el

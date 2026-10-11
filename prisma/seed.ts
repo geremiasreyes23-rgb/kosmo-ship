@@ -447,7 +447,7 @@ async function main() {
   // /mail sin buzón. Acá se duplica una versión mínima y autocontenida
   // (sin importar "@/lib/...") porque este script corre con su propio
   // PrismaClient fuera del alias de rutas de la app.
-  const INTERNAL_DOMAIN = (process.env.INTERNAL_EMAIL_DOMAIN || "alliance.internal").trim();
+  const INTERNAL_DOMAIN = (process.env.INTERNAL_EMAIL_DOMAIN || "kosmoship.internal").trim();
   function slugifyLocalPart(firstName: string, lastName: string): string {
     const base = `${firstName}.${lastName}`
       .normalize("NFD")

@@ -271,7 +271,7 @@ export function UsersPanel({
               type="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="nombre@kosmocrm.com"
+              placeholder="nombre@empresa.com"
             />
           </FieldWrapper>
           <FieldWrapper label="Rol">

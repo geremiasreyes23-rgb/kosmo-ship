@@ -17,8 +17,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "KOSMO CRM",
-  description: "KOSMO — plataforma CRM para agencias de seguros",
+  title: "Kosmo Ship",
+  description: "Kosmo Ship — plataforma de paquetería y courier de Kosmo Space",
 };
 
 export default function RootLayout({

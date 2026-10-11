@@ -139,7 +139,7 @@ export default function LoginPage() {
                       autoFocus
                       required
                       autoComplete="username"
-                      placeholder="nombre@kosmocrm.com o nombre.apellido@alliance.internal"
+                      placeholder="nombre@empresa.com o nombre.apellido@kosmoship.internal"
                       className="h-10 w-full rounded-lg border border-white/15 bg-white/[0.06] pl-9 pr-3 text-sm text-white placeholder:text-white/40 outline-none transition-colors focus:border-white/40 focus:bg-white/[0.1]"
                     />
                   </div>

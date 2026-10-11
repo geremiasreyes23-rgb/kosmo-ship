@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Menu, LogOut, KeyRound, ChevronDown, UserCircle, Loader2, Users, UserPlus, FileCheck2, Building, Palette } from "lucide-react";
+import { Search, Menu, LogOut, KeyRound, ChevronDown, UserCircle, Loader2, Package, KeySquare, Palette } from "lucide-react";
 import { logoutAction } from "@/app/(app)/logout-action";
 import { ClockWidget } from "./ClockWidget";
 import { ProfileModal } from "@/components/profile/ProfileModal";
@@ -41,8 +41,8 @@ export function Header({
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, []);
 
-  // Buscador global — busca clientes (por nombre, teléfono, email o ID
-  // visible), leads, pólizas y carriers, con debounce para no disparar una
+  // Buscador global — busca paquetes (por PKG, tracking o casillero) y
+  // casilleros (por código o datos del cliente), con debounce para no disparar una
   // consulta en cada tecla. El resultado se agrupa por categoría en un
   // dropdown, igual que el buscador de Gmail/Linear.
   const router = useRouter();
@@ -85,10 +85,7 @@ export function Header({
 
   const hasResults =
     !!results &&
-    (results.clients.length > 0 ||
-      results.leads.length > 0 ||
-      results.policies.length > 0 ||
-      results.carriers.length > 0);
+    (results.packages.length > 0 || results.lockers.length > 0);
 
   function goTo(href: string) {
     setSearchOpen(false);
@@ -124,7 +121,7 @@ export function Header({
               setSearchOpen(true);
             }}
             onFocus={() => setSearchOpen(true)}
-            placeholder="Buscar cliente, lead, póliza, carrier..."
+            placeholder="Buscar paquete, tracking, casillero o cliente..."
             className="h-10 w-full rounded-full border border-transparent bg-white/[0.08] pl-10 pr-9 text-sm text-white outline-none placeholder:text-white/40 transition-all duration-150 hover:bg-white/[0.12] focus:border-white/15 focus:bg-[#1c1030] focus:shadow-[0_4px_18px_rgba(0,0,0,0.45)]"
           />
           {searchLoading && (
@@ -143,10 +140,8 @@ export function Header({
               )}
               {results && hasResults && (
                 <div className="py-1.5">
-                  <SearchGroup icon={Users} label="Clientes" hits={results.clients} onSelect={goTo} />
-                  <SearchGroup icon={UserPlus} label="Leads" hits={results.leads} onSelect={goTo} />
-                  <SearchGroup icon={FileCheck2} label="Pólizas" hits={results.policies} onSelect={goTo} />
-                  <SearchGroup icon={Building} label="Carriers" hits={results.carriers} onSelect={goTo} />
+                  <SearchGroup icon={Package} label="Paquetes" hits={results.packages} onSelect={goTo} />
+                  <SearchGroup icon={KeySquare} label="Casilleros" hits={results.lockers} onSelect={goTo} />
                 </div>
               )}
             </div>
@@ -156,7 +151,7 @@ export function Header({
 
       <div className="col-start-3 flex items-center gap-4">
         <div className="hidden items-center border-r border-white/15 pr-4 sm:flex">
-          <span className="text-base font-semibold text-white/90">Alliance Insurance</span>
+          <span className="text-base font-semibold text-white/90">Kosmo Ship</span>
         </div>
         <NotificationBell />
 

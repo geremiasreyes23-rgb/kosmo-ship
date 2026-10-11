@@ -14,7 +14,7 @@ export type LoginResult =
  * Acepta como identificador de login TANTO el correo real (User.email, lo de
  * siempre) COMO la dirección de correo interno (usuario@<dominio interno>) —
  * a pedido explícito, para que alguien también pueda entrar con su dirección
- * @alliance.internal. Ninguna cuenta ni contraseña nueva: el InternalMailbox
+ * @kosmoship.internal. Ninguna cuenta ni contraseña nueva: el InternalMailbox
  * nunca tiene credenciales propias, solo resuelve a QUÉ User pertenece, y de
  * ahí en adelante sigue exactamente el mismo flujo (misma contraseña, mismo
  * chequeo de estado ACTIVE) que si hubiera entrado con su correo real.
